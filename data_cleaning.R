@@ -1,6 +1,13 @@
+# ---------------------------------------
+# German Credit Data Cleaning
+# Reads in the raw German credit dataset, examines the original variables,
+# renames V1-V20 into clearer feature names, splits V9 into separate
+# gender and marital_status variables, removes the original raw columns,
+# and exports the cleaned dataset as german_clean.csv for later analysis.
+# ---------------------------------------
+
 german <- read.table("C:/Users/carol/OneDrive - Wellesley College/IPUMS/german.data-numeric", quote="\"", comment.char="")
 View(german)
-
 
 summary(german$V1)
 hist(german$V1)
