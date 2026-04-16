@@ -36,7 +36,7 @@ german$installment_rate <- german$V7
 #   german$V9 == "5" ~ "single"
 # )
 # german$marital_status <- as.factor(german$marital_status)
-
+german$dis_inc <- german$V8
 german$gender <- german$V9
 
 
