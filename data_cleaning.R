@@ -41,3 +41,13 @@ german$good_bad_credit = ifelse(german$good_bad_credit == 2, 0, 1)
 german = german[, 26:50]
 
 write.csv(german, "data/german_clean.csv", row.names = FALSE)
+
+
+
+# Create train/test split
+
+# 800 in train/200 in test
+set.seed(1)
+train.index = sample(1:1000, 800, replace=FALSE)
+write.csv(german[train.index,], "data/german_train.csv", row.names = FALSE)
+write.csv(german[-train.index,], "data/german_test.csv", row.names = FALSE)
