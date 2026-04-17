@@ -6,56 +6,38 @@
 # and exports the cleaned dataset as german_clean.csv for later analysis.
 # ---------------------------------------
 
-german <- read.table("data/german.data-numeric", quote="\"", comment.char="")
-View(german)
+german = read.table("data/german.data-numeric", quote="\"", comment.char="")
 
-summary(german$V1)
-hist(german$V1)
+german$checking = german$V1
+german$duration = german$V2
+german$credit_history = german$V3
+german$credit_amount = german$V4 
+german$savings = german$V5 
+german$employment = german$V6 
+german$installment_pct_inc = german$V7
+german$personal_status_sex = german$V8 
+german$property = german$V9  
+german$age = german$V10 
+german$other_installment = german$V11 
+german$credits_in_bank = german$V12
+german$telephone_owned = german$V13 
+german$residence_since = german$V14
+german$foreign_worker = german$V15
 
-#Step 1: replace variables V"" into clearer names
+# Indicator variables
+german$purpose_new_car = german$V16
+german$purpose_used_car = german$V17 
+german$no_other_debtors = german$V18 
+german$coapplicant = german$V19
+german$housing_rent = german$V20
+german$housing_own = german$V21
+german$job_unskilled_nonres = german$V22
+german$job_unskilled_res = german$V23 
+german$job_skilled = german$V24
 
-german$checking <- german$V1
-german$duration <- german$V2
-german$credit_history <- german$V3
-german$purpose <- german$V4
-german$credit_amount <- german$V5
-german$employment <- german$V6
-german$installment_rate <- german$V7
+german$good_bad_credit = german$V25
+german$good_bad_credit = ifelse(german$good_bad_credit == 2, 0, 1)
 
-#V9 can be split into two extra variables
+german = german[, 26:50]
 
-
-# german$gender <- ifelse(german$V9 %in% c("1", "3", "4"),
-#                         "male", "female")
-# german$gender <- as.factor(german$gender)
-# german$marital_status <- dplyr::case_when(
-#   german$V9 == "1" ~ "divorced_separated",
-#   german$V9 == "2" ~ "married",  # simplifying this mixed category
-#   german$V9 == "3" ~ "single",
-#   german$V9 == "4" ~ "married_widowed",
-#   german$V9 == "5" ~ "single"
-# )
-# german$marital_status <- as.factor(german$marital_status)
-german$dis_inc <- german$V8
-german$gender <- german$V9
-
-
-german$other_debtors_gaurantors <- german$V10
-german$residenceyr <- german$V11
-german$property <- german$V12
-german$age <- german$V13
-german$other_installment <- german$V14
-german$housing <- german$V15
-german$credits_in_bank <- german$V16
-german$job <- german$V17
-german$people_liable <- german$V18
-german$telephone_owned <- german$V19
-german$foreign_worker <- german$V20
-german$good_bad_credit <- german$V25
-
-# Change predicted variable to 1/0, 1 = Good, 0 = Bad
-german$good_bad_credit <- ifelse(german$good_bad_credit == "1", 1, 0)
-
-#Getting rid of V1-20, 25
-german <- german[, -c(1:20, 25)]
 write.csv(german, "data/german_clean.csv", row.names = FALSE)
