@@ -1,5 +1,0 @@
----
-title: "glm"
-output: html_document
----
-
