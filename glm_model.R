@@ -12,8 +12,10 @@ train.german = read.csv("data/german_train.csv", header=TRUE)
 # Fit logit model
 fit.logit = glm(good_bad_credit ~ ., data=train.german)
 
-# Perform stepwise w/ AIC
+# Perform stepwise variable selection w/ AIC
 step_model = step(fit.logit, direction = "both")
+
+fit.logit = step_model
 
 
 # Choosing a threshold
@@ -41,6 +43,7 @@ plot(d.threshold, sensitivity, lty = 1, type = "l",
 lines(d.threshold, specificity, lty = 2)
 legend("bottomright", lty = c(1,2),
        legend = c("sensitivity","specificity"))
+abline(v=0.5, col="red")
 dev.off()
 
 
