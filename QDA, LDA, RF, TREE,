@@ -1,0 +1,393 @@
+german_data <- read.csv("C:/IPUMS/usa_0001.dat/german_clean.csv")
+View(german_data)
+german_data$good_bad_credit <- as.factor(german_data$good_bad_credit)
+
+set.seed(1) #important!!
+
+#Indexing training/test data
+train_idx <- sample(1:nrow(german_data), 0.8 * nrow(german_data))
+train <- german_data[train_idx, ]
+test  <- german_data[-train_idx, ]
+
+
+#Standardizing and scaling 
+train_x <- scale(train[, -which(names(train) == "good_bad_credit")])
+test_x  <- scale(test[, -which(names(test) == "good_bad_credit")],
+                 center = attr(train_x, "scaled:center"),
+                 scale  = attr(train_x, "scaled:scale"))
+
+train_scaled <- data.frame(train_x, label = train$good_bad_credit)
+test_scaled  <- data.frame(test_x, label = test$good_bad_credit)
+#==============================================================
+#Assumptions 
+
+#1. Multivariate Normality 
+dev.off() 
+
+par(mfrow = c(2, 2))
+#Age 
+qqnorm(german_data$age[german_data$good_bad_credit == 1])
+qqline(german_data$age[german_data$good_bad_credit == 1])
+
+qqnorm(german_data$age[german_data$good_bad_credit == 0])
+qqline(german_data$age[german_data$good_bad_credit == 0])
+
+#Credit amount
+
+
+qqnorm(german_data$credit_amount[german_data$good_bad_credit == 1])
+qqline(german_data$credit_amount[german_data$good_bad_credit == 1])
+
+qqnorm(german_data$credit_amount[german_data$good_bad_credit == 0])
+qqline(german_data$credit_amount[german_data$good_bad_credit == 0])
+
+#Duration
+qqnorm(german_data$duration[german_data$good_bad_credit == 1])
+qqline(german_data$duration[german_data$good_bad_credit == 1])
+
+qqnorm(german_data$duration[german_data$good_bad_credit == 0])
+qqline(german_data$duration[german_data$good_bad_credit == 0])
+
+
+
+# NOTE: not sure if i have to include more variables, but included three + train/test 
+#NOTE2: No big deviations from the normal, some slight. LDA/QDA pretty robust, we proceed
+#2. Homogeneity of Covariance
+
+install.packages("biotools")
+library("biotools")
+
+boxM(train[, -which(names(train) == "good_bad_credit")],
+     train$good_bad_credit)
+
+#NOTE: we reject the null here, we can only proceed with QDA rather than LDA
+#===========================================================
+#LDA fit 
+
+library(MASS)
+lda_fit <- lda(label ~ ., data = train_scaled)
+
+lda_pred <- predict(lda_fit, newdata = test_scaled)
+
+table(Predicted = lda_pred$class, Actual = test_scaled$label)
+mean(lda_pred$class != test_scaled$label)
+
+#==========================================================
+#QDA fit
+
+qda_fit <- qda(label ~ ., data = train_scaled)
+
+# Probability of BAD = 1 (positive class)
+qda_prob <- predict(qda_fit, newdata = test_scaled)$posterior[, "1"]
+
+thresholds <- seq(0.01, 0.99, by = 0.01)
+
+sens_values <- sapply(thresholds, function(t) {
+  pred <- factor(ifelse(qda_prob > t, 1, 0), levels = c(0,1))
+  actual <- factor(test_scaled$label, levels = c(0,1))
+  
+  cm <- table(Predicted = pred, Actual = actual)
+  
+  TP <- cm["1","1"]
+  FN <- cm["0","1"]
+  
+  TP / (TP + FN)
+})
+
+best_t <- thresholds[which.max(sens_values)]
+best_t
+
+# Final predictions
+qda_pred_tuned <- factor(ifelse(qda_prob > best_t, 1, 0), levels = c(0,1))
+
+cm_qda <- table(Predicted = qda_pred_tuned, Actual = factor(test_scaled$label, levels = c(0,1)))
+
+TP_qda <- cm_qda["1","1"]  
+FN_qda <- cm_qda["0","1"]  
+FP_qda <- cm_qda["1","0"]  
+TN_qda <- cm_qda["0","0"]  
+
+# Metrics
+sensitivity_qda <- TP_qda / (TP_qda + FN_qda)
+specificity_qda <- TN_qda / (TN_qda + FP_qda)
+precision_qda <- TP_qda / (TP_qda + FP_qda)
+f1_qda <- 2 * (precision_qda * sensitivity_qda) / (precision_qda + sensitivity_qda)
+misclassification_qda <- (FP_qda + FN_qda) / sum(cm_qda)
+
+# Cost (correct direction)
+Cost_qda <- 5 * FN_qda + 1 * FP_qda
+
+qda_results <- data.frame(
+  Model = "QDA (Tuned)",
+  Threshold = best_t,
+  Sensitivity = sensitivity_qda,
+  Specificity = specificity_qda,
+  Precision = precision_qda,
+  F1_Score = f1_qda,
+  Misclassification = misclassification_qda,
+  Cost = Cost_qda
+)
+
+qda_results
+
+actual <- test_scaled$label
+roc_obj <- roc(actual, qda_prob)
+auc(roc_obj)
+
+#===================================================
+#QDA without COST MATRIX
+qda_fit <- qda(label ~ ., data = train_scaled)
+
+qda_pred_default <- predict(qda_fit, newdata = test_scaled)
+
+cm_qda_default <- table(
+  Predicted = qda_pred_default$class,
+  Actual = factor(test_scaled$label, levels = c(0,1))
+)
+
+# Extract values (BAD = 1 is positive class)
+TP <- cm_qda_default["1","1"]
+FN <- cm_qda_default["0","1"]
+FP <- cm_qda_default["1","0"]
+TN <- cm_qda_default["0","0"]
+
+# Metrics
+sensitivity_qda <- TP / (TP + FN)
+specificity_qda <- TN / (TN + FP)
+precision_qda   <- TP / (TP + FP)
+f1_qda          <- 2 * (precision_qda * sensitivity_qda) / (precision_qda + sensitivity_qda)
+misclassification_qda <- (FP + FN) / sum(cm_qda_default)
+
+qda_default_results <- data.frame(
+  Model = "QDA (Default 0.5)",
+  Sensitivity = sensitivity_qda,
+  Specificity = specificity_qda,
+  Precision = precision_qda,
+  F1_Score = f1_qda,
+  Misclassification = misclassification_qda
+)
+
+qda_default_results
+#=====================================================
+
+#Section 2: Tree Based Models
+
+#===================================================
+#Setting UP tree/forest/bagging 
+library(pROC)
+library(tree)
+library(randomForest)
+
+# Make sure outcome is consistent
+train$good_bad_credit <- factor(train$good_bad_credit, levels = c(0,1))
+test$good_bad_credit  <- factor(test$good_bad_credit, levels = c(0,1))
+
+#=================================================== 
+#Tree Pruning
+fit <- tree(good_bad_credit ~ ., data = train)
+plot(fit)
+text(fit, pretty = 0)
+cv_fit <- cv.tree(fit, FUN = prune.misclass) 
+best_size <- cv_fit$size[which.min(cv_fit$dev)]
+pruned_tree <- prune.misclass(fit, best = best_size)
+plot(cv_fit$size, cv_fit$dev, type = "b", xlab = "Number of Terminal Nodes", ylab = "Cross-Validated Misclassification Error", main = "Tree Size vs Misclassification Error") 
+plot(pruned_tree)
+text(pruned_tree, pretty = 0)
+#====================================================
+# 1. CLASSIFICATION TREE
+
+thresholds <- seq(0.01, 0.99, by = 0.01)
+
+tree_fit <- pruned_tree
+
+
+tree_prob <- predict(tree_fit, newdata = test)[, "1"]
+
+roc_tree <- roc(test$good_bad_credit, tree_prob)
+auc_tree <- auc(roc_tree)
+
+cost_values_tree <- sapply(thresholds, function(t) {
+  pred <- factor(ifelse(tree_prob > t, 1, 0), levels = c(0,1))
+  actual <- factor(test$good_bad_credit, levels = c(0,1))
+  
+  cm <- table(Predicted = pred, Actual = actual)
+  
+  FP <- cm["1","0"]
+  FN <- cm["0","1"]
+  
+  5 * FN + 1 * FP
+})
+
+tree_t <- thresholds[which.min(cost_values_tree)]
+tree_t
+
+# Final predictions
+tree_pred <- factor(ifelse(tree_prob > tree_t, 1, 0), levels = c(0,1))
+actual <- factor(test$good_bad_credit, levels = c(0,1))
+
+cm_tree <- table(Predicted = tree_pred, Actual = actual)
+
+TP <- cm_tree["1","1"]
+FP <- cm_tree["1","0"]
+FN <- cm_tree["0","1"]
+TN <- cm_tree["0","0"]
+
+# Metrics
+sensitivity_tree <- TP/(TP+FN)
+specificity_tree <- TN/(TN+FP)
+misclassification_tree <- (FP+FN)/sum(cm_tree)
+cost_tree <- 5*FN + 1*FP
+
+sensitivity_tree
+specificity_tree 
+misclassification_tree 
+cost_tree
+
+#==================================================
+#TREE witohut costs
+
+
+tree_fit <- pruned_tree   
+
+tree_prob <- predict(tree_fit, newdata = test, type = "vector")[, "1"]
+
+
+tree_pred_default <- factor(ifelse(tree_prob > 0.5, 1, 0), levels = c(0,1))
+
+cm_tree_default <- table(
+  Predicted = tree_pred_default,
+  Actual = factor(test$good_bad_credit, levels = c(0,1))
+)
+
+TP <- cm_tree_default["1","1"]
+FN <- cm_tree_default["0","1"]
+FP <- cm_tree_default["1","0"]
+TN <- cm_tree_default["0","0"]
+
+# Metrics
+sensitivity_tree <- TP/(TP+FN)
+specificity_tree <- TN/(TN+FP)
+precision_tree   <- TP/(TP+FP)
+f1_tree          <- 2 * (precision_tree * sensitivity_tree) / (precision_tree + sensitivity_tree)
+misclassification_tree <- (FP+FN)/sum(cm_tree_default)
+
+tree_default_results <- data.frame(
+  Model = "Tree (Default 0.5)",
+  Sensitivity = sensitivity_tree,
+  Specificity = specificity_tree,
+  Precision = precision_tree,
+  F1_Score = f1_tree,
+  Misclassification = misclassification_tree
+)
+
+tree_default_results
+
+#====================================================
+# 2. RANDOM FOREST
+
+
+thresholds <- seq(0.01, 0.99, by = 0.01)
+rf_fit <- randomForest(good_bad_credit ~ ., data = train, ntree = 500)
+
+rf_prob <- predict(rf_fit, newdata = test, type = "prob")[, "1"]
+roc_rf <- roc(test$good_bad_credit, rf_prob)
+auc_rf <- auc(roc_rf)
+
+cost_values <- sapply(thresholds, function(t) {
+  pred <- factor(ifelse(rf_prob > t, 1, 0), levels = c(0,1))
+  actual <- factor(test$good_bad_credit, levels = c(0,1))
+  
+  cm <- table(Predicted = pred, Actual = actual)
+  
+  FP <- cm["1","0"]
+  FN <- cm["0","1"]
+  
+  5 * FN + 1 * FP
+})
+
+rf_t <- thresholds[which.min(cost_values)]
+rf_t
+
+
+rf_pred <- factor(ifelse(rf_prob > rf_t, 1, 0), levels = c(0,1))
+
+cm_rf <- table(Predicted = rf_pred, Actual = test$good_bad_credit)
+
+TP_rf <- cm_rf["1","1"]
+FP_rf <- cm_rf["1","0"]
+FN_rf <- cm_rf["0","1"]
+TN_rf <- cm_rf["0","0"]
+
+# Metrics
+sensitivity_rf <- TP_rf/(TP_rf+FN_rf)
+specificity_rf <- TN_rf/(TN_rf+FP_rf)
+misclassification_rf <- (FP_rf+FN_rf)/sum(cm_rf)
+
+# Final cost
+cost_rf <- 5*FN_rf + 1*FP_rf
+#===================================================
+#RF without cost
+
+
+rf_fit <- randomForest(good_bad_credit ~ ., data = train, ntree = 500)
+
+rf_prob <- predict(rf_fit, newdata = test, type = "prob")[, "1"]
+
+# Default threshold = 0.5
+rf_pred_default <- factor(ifelse(rf_prob > 0.5, 1, 0), levels = c(0,1))
+
+cm_rf_default <- table(
+  Predicted = rf_pred_default,
+  Actual = factor(test$good_bad_credit, levels = c(0,1))
+)
+
+TP <- cm_rf_default["1","1"]
+FN <- cm_rf_default["0","1"]
+FP <- cm_rf_default["1","0"]
+TN <- cm_rf_default["0","0"]
+
+# Metrics
+sensitivity_rf <- TP/(TP+FN)
+specificity_rf <- TN/(TN+FP)
+precision_rf   <- TP/(TP+FP)
+f1_rf          <- 2 * (precision_rf * sensitivity_rf) / (precision_rf + sensitivity_rf)
+misclassification_rf <- (FP+FN)/sum(cm_rf_default)
+
+rf_default_results <- data.frame(
+  Model = "Random Forest (Default 0.5)",
+  Sensitivity = sensitivity_rf,
+  Specificity = specificity_rf,
+  Precision = precision_rf,
+  F1_Score = f1_rf,
+  Misclassification = misclassification_rf
+)
+
+rf_default_results
+
+#====================================================
+# AUC TABLE
+
+auc_results <- data.frame(
+  Model = c("Classification Tree", "Random Forest"),
+  AUC = c(auc_tree, auc_rf)
+)
+
+
+auc_results
+
+#====================================================
+# ROC PLOT w legend
+
+roc_tree <- roc(test$good_bad_credit, tree_prob)
+auc_tree <- auc(roc_tree)
+plot(roc_rf, col = "red", lwd = 2, main = "ROC Curves Comparison")
+plot(roc_tree, col = "green", lwd = 2, add = TRUE)
+abline(a = 0, b = 1, lty = 2, col = "gray")
+
+legend("bottomright",
+       legend = c(
+         paste("RF AUC =", round(auc_rf, 3)),
+         paste("Tree AUC =", round(auc_tree, 3))
+       ),
+       col = c("red", "green"),
+       lwd = 2)
