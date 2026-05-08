@@ -1,9 +1,5 @@
 # ---------------------------------------
 # German Credit Data Cleaning
-# Reads in the raw German credit dataset, examines the original variables,
-# renames V1-V20 into clearer feature names, splits V9 into separate
-# gender and marital_status variables, removes the original raw columns,
-# and exports the cleaned dataset as german_clean.csv for later analysis.
 # ---------------------------------------
 
 german = read.table("data/german.data-numeric", quote="\"", comment.char="")
@@ -44,14 +40,12 @@ write.csv(german, "data/german_clean.csv", row.names = FALSE)
 
 
 
+
 # Create train/test split
 
 # 800 in train/200 in test
 set.seed(1)
 train.index = sample(1:1000, 800, replace=FALSE)
-write.csv(german[train.index,], "data/german_train.csv", row.names = FALSE)
-write.csv(german[-train.index,], "data/german_test.csv", row.names = FALSE)
 
-
-summary(german)
-# Found 0 NA's
+write.csv(german[train.index,], "data/german_train.csv", row.names = FALSE) #233/567
+write.csv(german[-train.index,], "data/german_test.csv", row.names = FALSE) #67/133

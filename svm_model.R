@@ -3,6 +3,7 @@
 # ---------------------------------------
 
 library(e1071)
+library(pROC)
 
 test.german = read.csv("data/german_test.csv", header=TRUE)
 train.german = read.csv("data/german_train.csv", header=TRUE)
@@ -27,15 +28,17 @@ svm.fit.linear = svm(formula = good_bad_credit ~ .,
                      type="C-classification",
                      kernel="linear",
                      cost=100,
-                     scale=TRUE)
+                     scale=TRUE,
+                     probability=TRUE)
 
-Y.hat.linear = predict(svm.fit.linear, test.german)
+Y.hat.linear = predict(svm.fit.linear, test.german, probability=TRUE)
 
 conf.matrix = table(test.german$good_bad_credit,Y.hat.linear)
 
 linear.mc = mean(Y.hat.linear != test.german$good_bad_credit)
 linear.sens = conf.matrix[2,2] / (conf.matrix[1,2] + conf.matrix[2,2])
 linear.spec = conf.matrix[1,1] / (conf.matrix[1,1] + conf.matrix[2,1])
+linear.cost = conf.matrix[1,2] * 1 + conf.matrix[2,1] * 5
 
 
 # ------------------------------------------------------------------------------
@@ -57,15 +60,17 @@ svm.fit.poly = svm(formula = good_bad_credit ~ .,
                      type="C-classification",
                      kernel="polynomial",
                      cost=1,
-                     scale=TRUE)
+                     scale=TRUE,
+                     probability=TRUE)
 
-Y.hat.poly = predict(svm.fit.poly, test.german)
+Y.hat.poly = predict(svm.fit.poly, test.german, probability=TRUE)
 
 conf.matrix = table(test.german$good_bad_credit,Y.hat.poly)
 
 poly.mc = mean(Y.hat.poly != test.german$good_bad_credit)
 poly.sens = conf.matrix[2,2] / (conf.matrix[1,2] + conf.matrix[2,2])
 poly.spec = conf.matrix[1,1] / (conf.matrix[1,1] + conf.matrix[2,1])
+poly.cost = conf.matrix[1,2] * 1 + conf.matrix[2,1] * 5
 
 
 # ------------------------------------------------------------------------------
@@ -78,7 +83,8 @@ tune.out <- tune(
   ranges = list(gamma = 2^seq(-8, 1, by = 2), cost = c(0.1, 1, 5, 10, 100, 1000)),
   tunecontrol = tune.control(sampling = "fix"),
   validation.x = subset(test.german, select = -good_bad_credit),
-  validation.y = test.german$good_bad_credit
+  validation.y = test.german$good_bad_credit,
+  class.weights = c("0" = 1, "1" = 5),
 )
 tune.out$best.parameters
 
@@ -89,15 +95,30 @@ svm.fit.radial = svm(formula = good_bad_credit ~ .,
                    kernel="radial",
                    cost=5,
                    gamma=0.0625,
-                   scale=TRUE)
+                   scale=TRUE,
+                   probability=TRUE)
 
-Y.hat.radial = predict(svm.fit.radial, test.german)
+Y.hat.radial = predict(svm.fit.radial, test.german, probability=TRUE)
+svm.prob <- attr(Y.hat.radial, "probabilities")
+
+head(svm.prob)
 
 conf.matrix = table(test.german$good_bad_credit,Y.hat.radial)
 
 rad.mc = mean(Y.hat.radial != test.german$good_bad_credit)
 rad.sens = conf.matrix[2,2] / (conf.matrix[1,2] + conf.matrix[2,2])
 rad.spec = conf.matrix[1,1] / (conf.matrix[1,1] + conf.matrix[2,1])
+rad.cost = conf.matrix[1,2] * 1 + conf.matrix[2,1] * 5
+
+png("/Users/gracewang/stat228-credit-classifier/figures/roc_curve_svm_model.png", width = 800, height = 600)
+roc.svm <- roc(
+  response = test.german$good_bad_credit,
+  predictor = svm.prob[, "0"]
+)
+plot(roc.svm, main = "ROC Curve for SVM")
+auc(roc.svm)
+dev.off()
+
 
 
 svm.results <- data.frame(
@@ -106,5 +127,3 @@ svm.results <- data.frame(
   Sensitivity = c(linear.sens, poly.sens, rad.sens),
   Specificity = c(linear.spec, poly.spec, rad.spec)
 )
-
-svm.results
