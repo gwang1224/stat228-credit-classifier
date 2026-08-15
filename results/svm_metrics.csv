@@ -1,0 +1,4 @@
+"Model","Threshold","Misclassification","Sensitivity","Specificity","Cost","AUC"
+"SVM (linear)",NA,0.275,0.917,0.343,231,0.796
+"SVM (polynomial)",NA,0.335,0.955,0.09,311,0.718
+"SVM (radial)",NA,0.26,0.887,0.448,200,0.798

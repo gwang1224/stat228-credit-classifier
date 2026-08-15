@@ -1,0 +1,4 @@
+"Model","Threshold","Misclassification","Sensitivity","Specificity","Cost","AUC"
+"LDA",0.5,0.26,0.88,0.463,196,0.802
+"QDA",0.5,0.27,0.759,0.672,142,0.776
+"QDA (cost-tuned)",0.79,0.345,0.594,0.776,129,0.776
